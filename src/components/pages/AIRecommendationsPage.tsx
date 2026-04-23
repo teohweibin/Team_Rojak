@@ -59,26 +59,14 @@ export default function AIRecommendationsPage() {
 
   const generateNew = async () => {
     setGenerating(true);
-    // Generate new recommendations based on current inventory
     try {
-      const invRes = await fetch('/api/inventory');
-      const inventory = await invRes.json();
-
-      const critical = inventory.filter((i: { status: string }) => i.status === 'Critical' || i.status === 'Out of Stock');
-      for (const item of critical) {
-        await fetch('/api/recommendations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId: item.id,
-            type: 'reorder',
-            priority: item.status === 'Out of Stock' ? 'critical' : 'high',
-            message: `${item.name} (${item.sku}) requires immediate reorder. Current stock: ${item.quantity}, Reorder point: ${item.reorderPoint}. ${item.daysCover} days of cover remaining.`,
-            savingsMyr: 0,
-          }),
-        });
+      const res = await fetch('/api/recommendations/generate', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        fetchRecs();
+      } else {
+        console.error('Generation failed:', result.error);
       }
-      fetchRecs();
     } catch (e) {
       console.error(e);
     }

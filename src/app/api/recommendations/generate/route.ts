@@ -1,135 +1,152 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import ZAI from 'z-ai-web-dev-sdk';
 
-export async function POST(request: Request) {
-  const { prompt } = await request.json();
-
+export async function POST() {
   try {
-    const { default: AI } = await import('z-ai-web-dev-sdk');
-    const ai = new AI();
+    const zai = await ZAI.create();
 
-    // Gather inventory data for AI analysis
+    // Fetch current inventory and sales data
     const products = await db.product.findMany({
-      include: { supplier: true, inventory: true, sales: true },
+      include: { supplier: true, inventory: true },
     });
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const salesData = await db.sale.groupBy({
-      by: ['productId'],
-      where: { date: { gte: thirtyDaysAgo } },
-      _sum: { quantity: true, total: true },
-    });
-
     const exchangeRates = await db.exchangeRate.findMany();
 
+    // Build a data summary for the AI
     const inventorySummary = products.map((p) => {
-      const sales = salesData.find((s) => s.productId === p.id);
-      const velocity = (sales?._sum.quantity || 0) / 30;
-      const inv = p.inventory;
-      const daysCover = velocity > 0 ? Math.floor((inv?.quantity || 0) / velocity) : 999;
+      const qty = p.inventory?.quantity || 0;
       let status = 'Healthy';
-      if (!inv || inv.quantity === 0) status = 'Out of Stock';
-      else if (inv.quantity < p.reorderPoint * 0.3) status = 'Critical';
-      else if (inv.quantity < p.reorderPoint) status = 'Low';
-
+      if (qty === 0) status = 'Out of Stock';
+      else if (qty < p.reorderPoint * 0.3) status = 'Critical';
+      else if (qty < p.reorderPoint) status = 'Low';
       return {
         name: p.name,
         sku: p.sku,
         category: p.category,
-        unitPrice: p.unitPriceMyr,
+        unitPriceMyr: p.unitPriceMyr,
+        currentStock: qty,
         reorderPoint: p.reorderPoint,
-        leadTime: p.leadTimeDays,
+        leadTimeDays: p.leadTimeDays,
         supplier: p.supplier.name,
         supplierCurrency: p.supplier.currency,
-        stock: inv?.quantity || 0,
-        dailyVelocity: velocity.toFixed(2),
-        daysCover,
         status,
-        totalRevenue30d: sales?._sum.total || 0,
       };
     });
 
-    const rates = exchangeRates.map((r) => `${r.fromCurrency}/${r.toCurrency}: ${r.rate}`).join(', ');
+    // Get sales velocity
+    const salesData: Record<string, { total: number; days: number }> = {};
+    for (const p of products) {
+      const agg = await db.sale.aggregate({
+        where: { productId: p.id, date: { gte: thirtyDaysAgo } },
+        _sum: { quantity: true, total: true },
+      });
+      salesData[p.id] = {
+        total: agg._sum.quantity || 0,
+        days: 30,
+      };
+    }
 
-    const systemPrompt = `You are a supply chain AI advisor for a Malaysian coffee shop and goods business. Analyze inventory data and generate actionable recommendations. Currency is MYR. Current exchange rates: ${rates}. 
+    const enrichedSummary = inventorySummary.map((item) => {
+      const p = products.find((pr) => pr.sku === item.sku);
+      if (!p) return item;
+      const sales = salesData[p.id] || { total: 0, days: 30 };
+      const avgDaily = sales.total / sales.days;
+      const daysCover = avgDaily > 0 ? Math.round((item.currentStock / avgDaily) * 10) / 10 : 0;
+      return { ...item, avgDailySales: Math.round(avgDaily * 10) / 10, daysCover };
+    });
 
-Respond ONLY with a JSON array of recommendations. Each object must have:
-- "productId": the exact product name to match
-- "type": one of "reorder", "price_adjust", "supplier_switch"
-- "priority": one of "critical", "high", "medium"
-- "message": clear actionable recommendation (2-3 sentences)
-- "savingsMyr": estimated savings in MYR (number or null)
+    const rateInfo = exchangeRates.map((r) => `${r.fromCurrency}/${r.toCurrency}: ${r.rate}`).join(', ');
 
-Generate 2-4 relevant recommendations based on the data. Only include recommendations that make sense.`;
+    const prompt = `You are an expert inventory management AI for a Malaysian business (currency: MYR). Analyze the following inventory data and generate 2-5 actionable stock refill recommendations. Focus on items that are Critical, Low, or Out of Stock.
 
-    const userMessage = `Analyze this inventory data and generate recommendations:\n${JSON.stringify(inventorySummary, null, 2)}`;
+Current exchange rates: ${rateInfo}
 
-    const completion = await ai.chat.completions.create({
-      model: 'deepseek-chat',
+Inventory data:
+${JSON.stringify(enrichedSummary, null, 2)}
+
+Respond ONLY with a valid JSON array of recommendation objects. Each object must have:
+- "sku": the product SKU (string)
+- "type": one of "reorder", "price_adjust", or "supplier_switch" (string)
+- "priority": one of "critical", "high", or "medium" (string)
+- "message": a clear, specific recommendation message (string)
+- "savingsMyr": estimated savings in MYR (number, can be 0)
+
+Do NOT include any text outside the JSON array. Do NOT wrap in markdown code blocks.`;
+
+    const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
+        {
+          role: 'system',
+          content: 'You are an inventory management AI. Always respond with valid JSON arrays only. No markdown, no explanation, just the JSON array.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
       ],
       temperature: 0.7,
     });
 
-    const content = completion.choices[0]?.message?.content || '[]';
+    let aiContent = completion.choices[0]?.message?.content || '[]';
 
-    // Parse the AI response - try to extract JSON array
+    // Clean up any markdown wrapping
+    aiContent = aiContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
     let recommendations: Array<{
-      productId: string;
+      sku: string;
       type: string;
       priority: string;
       message: string;
-      savingsMyr: number | null;
-    }> = [];
+      savingsMyr: number;
+    }>;
 
     try {
-      // Try to find JSON array in the response
-      const match = content.match(/\[[\s\S]*\]/);
-      if (match) {
-        recommendations = JSON.parse(match[0]);
-      }
+      recommendations = JSON.parse(aiContent);
     } catch {
-      // Fallback: create generic recommendation
-      recommendations = [{
-        productId: products[0]?.name || 'Unknown',
-        type: 'reorder',
-        priority: 'medium',
-        message: 'Review inventory levels and place reorders for items approaching their reorder points.',
-        savingsMyr: null,
-      }];
-    }
-
-    // Map product names to IDs and save to DB
-    const savedRecommendations = [];
-    for (const rec of recommendations) {
-      const product = products.find(
-        (p) => p.name.toLowerCase() === rec.productId.toLowerCase()
+      return NextResponse.json(
+        { error: 'AI returned invalid response', raw: aiContent },
+        { status: 500 }
       );
-      if (product) {
-        const saved = await db.recommendation.create({
-          data: {
-            productId: product.id,
-            type: rec.type,
-            priority: rec.priority,
-            message: rec.message,
-            status: 'pending',
-            savingsMyr: rec.savingsMyr,
-          },
-          include: { product: true },
-        });
-        savedRecommendations.push(saved);
-      }
     }
 
-    return NextResponse.json(savedRecommendations);
+    // Save recommendations to database
+    const savedRecs = [];
+    for (const rec of recommendations) {
+      const product = products.find((p) => p.sku === rec.sku);
+      if (!product) continue;
+
+      // Skip if there's already a pending recommendation for this product
+      const existing = await db.recommendation.findFirst({
+        where: { productId: product.id, status: 'pending' },
+      });
+      if (existing) continue;
+
+      const saved = await db.recommendation.create({
+        data: {
+          productId: product.id,
+          type: rec.type || 'reorder',
+          priority: rec.priority || 'medium',
+          message: rec.message || 'Review recommended',
+          savingsMyr: rec.savingsMyr || 0,
+          status: 'pending',
+        },
+      });
+      savedRecs.push(saved);
+    }
+
+    return NextResponse.json({
+      success: true,
+      count: savedRecs.length,
+      recommendations: savedRecs,
+    });
   } catch (error) {
-    console.error('AI generation error:', error);
+    console.error('AI recommendation generation failed:', error);
     return NextResponse.json(
-      { error: 'Failed to generate recommendations' },
+      { error: 'Failed to generate AI recommendations' },
       { status: 500 }
     );
   }
