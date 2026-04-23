@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  country   String
+  currency  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id           String    @id @default(cuid())
+  sku          String    @unique
+  name         String
+  category     String
+  unitPriceMyr Float
+  reorderPoint Int
+  leadTimeDays Int
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  inventory    Inventory?
+  sales        Sale[]
+  recommendations Recommendation[]
+}
+
+model Inventory {
+  id        String  @id @default(cuid())
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model Sale {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Float
+  total     Float
+  date      DateTime
+  createdAt DateTime @default(now())
+}
+
+model Recommendation {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  type       String
+  priority   String
+  message    String
+  status     String   @default("pending")
+  savingsMyr Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model InventoryMovement {
+  id        String   @id @default(cuid())
+  productId String
+  type      String
+  quantity  Int
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Float
+  updatedAt    DateTime @updatedAt
+}
