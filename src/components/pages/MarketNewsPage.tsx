@@ -1,65 +1,128 @@
 'use client';
 
-import { Newspaper, ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Newspaper, ExternalLink, Loader2 } from 'lucide-react';
 
-const newsItems = [
-  {
-    title: 'Malaysian Ringgit Strengthens Against USD Amid Regional Optimism',
-    summary: 'The MYR gained 0.3% against the US dollar as regional trade data showed improvement. Economists attribute this to stronger export figures and increased foreign investment inflows into Malaysia\'s manufacturing sector.',
-    date: '23 Apr 2026',
-    source: 'Bloomberg',
-  },
-  {
-    title: 'Global Coffee Bean Prices Surge Due to Supply Chain Disruptions',
-    summary: 'Arabica coffee futures rose 4.2% this week as shipping delays from major producing regions continue to impact global supply. Importers are advised to lock in forward contracts to hedge against further price increases.',
-    date: '22 Apr 2026',
-    source: 'Reuters',
-  },
-  {
-    title: 'China Manufacturing PMI Signals Expansion for Third Consecutive Month',
-    summary: 'China\'s official manufacturing PMI came in at 51.2, above the 50-mark that separates expansion from contraction. This bodes well for CNY-denominated supply chains and may reduce lead time variability for Malaysian importers.',
-    date: '21 Apr 2026',
-    source: 'CNBC',
-  },
-  {
-    title: 'EU Carbon Border Tax Impacts European Supplier Costs',
-    summary: 'The European Union\'s Carbon Border Adjustment Mechanism continues to push up manufacturing costs for European suppliers. Malaysian businesses sourcing from EU partners should anticipate 2-5% price increases in Q3 2026.',
-    date: '20 Apr 2026',
-    source: 'Financial Times',
-  },
-  {
-    title: 'Southeast Asian E-Commerce Growth Drives Packaging Demand',
-    summary: 'E-commerce sales across Southeast Asia grew 18% year-on-year, driving increased demand for packaging materials including disposable tableware. Suppliers report capacity constraints and 3-4 week lead times for new orders.',
-    date: '19 Apr 2026',
-    source: 'Nikkei Asia',
-  },
-  {
-    title: 'Bank Negara Malaysia Holds Interest Rate at 3.0%',
-    summary: 'The central bank maintained its overnight policy rate at 3.0%, citing stable inflation and manageable external uncertainties. The decision is expected to support MYR stability against major currencies in the near term.',
-    date: '18 Apr 2026',
-    source: 'The Star',
-  },
-];
+interface NewsItem {
+  title: string;
+  summary: string;
+  date: string;
+  source: string;
+  url: string;
+}
 
 export default function MarketNewsPage() {
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchNews = () => {
+    setLoading(true);
+    setError(null);
+    fetch('/api/market-news')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch news');
+        return res.json();
+      })
+      .then((data) => {
+        setNews(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => { fetchNews(); }, []);
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-MY', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold text-white mb-6">Market News</h2>
+        <div className="flex items-center justify-center py-16">
+          <Loader2 size={32} className="animate-spin text-emerald-400" />
+          <span className="ml-3 text-slate-400">Fetching latest market news...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold text-white mb-6">Market News</h2>
+        <div className="text-center py-16 bg-slate-800/30 border border-dashed border-slate-700 rounded-xl">
+          <Newspaper size={48} className="mx-auto mb-3 opacity-30" />
+          <p className="text-slate-500 mb-4">Failed to load news: {error}</p>
+          <button
+            onClick={fetchNews}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-white">Market News</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {newsItems.map((item, i) => (
-          <div key={i} className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Newspaper size={16} className="text-emerald-400 mt-0.5" />
-                <span className="text-xs text-emerald-400 font-medium">{item.source}</span>
-              </div>
-              <span className="text-xs text-slate-500">{item.date}</span>
-            </div>
-            <h3 className="text-white font-semibold mb-2 leading-tight">{item.title}</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">{item.summary}</p>
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-white">Market News</h2>
+        <button
+          onClick={fetchNews}
+          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs font-medium transition-colors"
+        >
+          Refresh
+        </button>
       </div>
+
+      {news.length === 0 ? (
+        <div className="text-center py-16 bg-slate-800/30 border border-dashed border-slate-700 rounded-xl">
+          <Newspaper size={48} className="mx-auto mb-3 opacity-30" />
+          <p className="text-slate-500">No news found. Try refreshing.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {news.map((item, i) => (
+            <div key={i} className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-colors">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Newspaper size={16} className="text-emerald-400 mt-0.5" />
+                  <span className="text-xs text-emerald-400 font-medium">{item.source}</span>
+                </div>
+                <span className="text-xs text-slate-500">{formatDate(item.date)}</span>
+              </div>
+              <h3 className="text-white font-semibold mb-2 leading-tight">{item.title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">{item.summary}</p>
+              {item.url && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-3 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <ExternalLink size={12} />
+                  Read more
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
