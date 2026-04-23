@@ -57,21 +57,32 @@ export default function AIRecommendationsPage() {
     fetchRecs();
   };
 
-  const generateNew = async () => {
+const generateNew = async () => {
+  try {
     setGenerating(true);
-    try {
-      const res = await fetch('/api/recommendations/generate', { method: 'POST' });
-      const result = await res.json();
-      if (result.success) {
-        fetchRecs();
-      } else {
-        console.error('Generation failed:', result.error);
-      }
-    } catch (e) {
-      console.error(e);
+
+    const res = await fetch('/api/recommendations/generate', {
+      method: 'POST',
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      console.error('Generation failed:', result);
+      return;
     }
+
+    console.log('Generated:', result);
+
+    // Refresh list after generation
+    fetchRecs();
+
+  } catch (e) {
+    console.error('Error generating:', e);
+  } finally {
     setGenerating(false);
-  };
+  }
+};
 
   const fmt = (n: number) => `RM${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
