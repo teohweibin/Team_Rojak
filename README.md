@@ -5,7 +5,9 @@ An intelligent inventory management system powered by **Z AI GLM**, designed to 
 Built for **UMHackathon 2026** | Category: AI-Powered Business Intelligence
 
 **Live Demo**: [https://c1ye938tnkg0-deploy.space.z.ai/](https://c1ye938tnkg0-deploy.space.z.ai/)
+
 **Demo Video**: [https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing](https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing)
+
 ---
 
 ## Problem Statement
