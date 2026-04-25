@@ -78,6 +78,7 @@ async function fetchMarketNews(): Promise<NewsItem[]> {
 export async function POST() {
   try {
     const products = await db.product.findMany({
+      take: 4,
       include: { supplier: true, inventory: true, sales: true },
     });
 
@@ -132,7 +133,7 @@ RECOMMENDATION TYPES:
 PRIORITY: "critical" (immediate action needed), "high" (act within days), "medium" (monitor and plan)
 
 PRODUCT DATA:
-${JSON.stringify(productSummaries, null, 2)}
+${JSON.stringify(productSummaries)}
 
 MARKET NEWS INTELLIGENCE:
 ${newsContext || '(No market news available — base reasoning on product data only)'}
