@@ -1,4 +1,3 @@
-import { getZAI } from '@/lib/zai';
 import { NextResponse } from 'next/server';
 
 interface NewsItem {
@@ -9,54 +8,76 @@ interface NewsItem {
   url: string;
 }
 
+function formatAlphaDate(dateStr: string) {
+  // Alpha Vantage format: 20260422T120000
+  if (!dateStr) return new Date().toISOString();
+
+  const year = dateStr.slice(0, 4);
+  const month = dateStr.slice(4, 6);
+  const day = dateStr.slice(6, 8);
+  const hour = dateStr.slice(9, 11) || '00';
+  const minute = dateStr.slice(11, 13) || '00';
+  const second = dateStr.slice(13, 15) || '00';
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+}
+
 export async function GET() {
   try {
-    const zai = await getZAI();
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
-    const queries = [
-      'Malaysia supply chain news 2026',
-      'MYR ringgit exchange rate news',
-      'commodity prices Asia 2026',
-      'manufacturing trade news Southeast Asia',
-    ];
-
-    const allItems: NewsItem[] = [];
-
-    for (const query of queries) {
-      try {
-        const results = await zai.functions.invoke('web_search', {
-          query,
-          num: 3,
-          recency_days: 7,
-        });
-
-        for (const item of results) {
-          allItems.push({
-            title: item.name,
-            summary: item.snippet,
-            date: item.date || new Date().toISOString().split('T')[0],
-            source: item.host_name,
-            url: item.url,
-          });
-        }
-      } catch (err) {
-        console.error(`Search failed for "${query}":`, err);
-      }
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Missing ALPHA_VANTAGE_API_KEY in .env.local' },
+        { status: 500 }
+      );
     }
 
-    const seen = new Set<string>();
-    const unique = allItems.filter((item) => {
-      const key = item.title.toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+    const keywords = [
+      'supply chain',
+      'trade',
+      'logistics',
+      'manufacturing',
+      'commodity',
+      'inventory',
+      'tariff',
+      'Malaysia',
+      'Asia'
+    ].join(',');
+
+    const url =
+      `https://www.alphavantage.co/query?function=NEWS_SENTIMENT` +
+      `&keywords=${encodeURIComponent(keywords)}` +
+      `&apikey=${apiKey}`;
+
+    const response = await fetch(url, {
+      next: { revalidate: 1800 },
     });
 
-    unique.sort((a, b) => b.date.localeCompare(a.date));
+    if (!response.ok) {
+      throw new Error('Failed to fetch Alpha Vantage news');
+    }
 
-    return NextResponse.json(unique.slice(0, 12));
+    const data = await response.json();
+
+    if (!data.feed) {
+      return NextResponse.json([]);
+    }
+
+    const news: NewsItem[] = data.feed.slice(0, 12).map((item: any) => ({
+      title: item.title || 'Untitled News',
+      summary: item.summary || 'No summary available.',
+      date: formatAlphaDate(item.time_published),
+      source: item.source || 'Unknown Source',
+      url: item.url || '',
+    }));
+
+    return NextResponse.json(news);
   } catch (error) {
     console.error('Market news fetch failed:', error);
-    return NextResponse.json({ error: 'Failed to fetch market news' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch market news' },
+      { status: 500 }
+    );
   }
 }

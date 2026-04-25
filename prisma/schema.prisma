@@ -54,16 +54,18 @@ model Sale {
 }
 
 model Recommendation {
-  id         String   @id @default(cuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id])
-  type       String
-  priority   String
-  message    String
-  status     String   @default("pending")
-  savingsMyr Float?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  type            String
+  priority        String
+  message         String
+  status          String   @default("pending")
+  savingsMyr      Float?
+  reasoning       String?
+  newsReferences  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model InventoryMovement {

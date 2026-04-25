@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Brain, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { Brain, CheckCircle, XCircle, Sparkles, ChevronDown, ChevronUp, ExternalLink, Newspaper } from 'lucide-react';
+
+interface NewsRef {
+  title: string;
+  url: string;
+}
 
 interface Recommendation {
   id: string;
@@ -10,6 +15,8 @@ interface Recommendation {
   message: string;
   status: string;
   savingsMyr: number | null;
+  reasoning: string | null;
+  newsReferences: string | null;
   createdAt: string;
   product: { id: string; name: string; sku: string };
 }
@@ -31,6 +38,122 @@ const typeLabel = (t: string) => {
     default: return t;
   }
 };
+
+function RecCard({ rec, onAccept, onDismiss }: { rec: Recommendation; onAccept: () => void; onDismiss: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const newsRefs: NewsRef[] = (() => {
+    try {
+      return rec.newsReferences ? JSON.parse(rec.newsReferences) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const hasDetail = rec.reasoning || newsRefs.length > 0;
+
+  return (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+              {typeLabel(rec.type)}
+            </span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${priorityColor(rec.priority)}`}>
+              {rec.priority}
+            </span>
+            <span className="text-xs text-slate-500">
+              {rec.product.name} ({rec.product.sku})
+            </span>
+          </div>
+          <p className="text-sm text-slate-300 leading-relaxed">{rec.message}</p>
+          {rec.savingsMyr && rec.savingsMyr > 0 && (
+            <p className="text-sm text-emerald-400 mt-2 font-medium">
+              Potential savings: RM{rec.savingsMyr.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          )}
+
+          {/* Expandable reasoning & news section */}
+          {hasDetail && (
+            <div className="mt-3">
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {expanded ? 'Hide details' : 'Show AI reasoning & sources'}
+              </button>
+
+              {expanded && (
+                <div className="mt-3 space-y-3 pl-3 border-l-2 border-emerald-500/30">
+                  {/* AI Reasoning */}
+                  {rec.reasoning && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Brain size={13} className="text-emerald-400" />
+                        <span className="text-xs font-semibold text-emerald-400">AI Reasoning</span>
+                      </div>
+                      <p className="text-sm text-slate-400 leading-relaxed">{rec.reasoning}</p>
+                    </div>
+                  )}
+
+                  {/* News References */}
+                  {newsRefs.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Newspaper size={13} className="text-amber-400" />
+                        <span className="text-xs font-semibold text-amber-400">Market News Sources</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {newsRefs.map((ref, i) => (
+                          <a
+                            key={i}
+                            href={ref.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start gap-1.5 text-xs text-slate-400 hover:text-emerald-300 transition-colors group"
+                          >
+                            <ExternalLink size={11} className="mt-0.5 shrink text-slate-500 group-hover:text-emerald-400" />
+                            <span className="line-clamp-2">{ref.title}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Status actions */}
+        {rec.status === 'pending' ? (
+          <div className="flex items-center gap-2 shrink">
+            <button
+              onClick={onDismiss}
+              className="flex items-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition-colors"
+            >
+              <XCircle size={14} /> Dismiss
+            </button>
+            <button
+              onClick={onAccept}
+              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors"
+            >
+              <CheckCircle size={14} /> Accept
+            </button>
+          </div>
+        ) : (
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+            rec.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'
+          }`}>
+            {rec.status}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AIRecommendationsPage() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
@@ -57,34 +180,23 @@ export default function AIRecommendationsPage() {
     fetchRecs();
   };
 
-const generateNew = async () => {
-  try {
-    setGenerating(true);
-
-    const res = await fetch('/api/recommendations/generate', {
-      method: 'POST',
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      console.error('Generation failed:', result);
-      return;
+  const generateNew = async () => {
+    try {
+      setGenerating(true);
+      const res = await fetch('/api/recommendations/generate', { method: 'POST' });
+      const result = await res.json();
+      if (!res.ok) {
+        console.error('Generation failed:', result);
+        return;
+      }
+      console.log('Generated:', result);
+      fetchRecs();
+    } catch (e) {
+      console.error('Error generating:', e);
+    } finally {
+      setGenerating(false);
     }
-
-    console.log('Generated:', result);
-
-    // Refresh list after generation
-    fetchRecs();
-
-  } catch (e) {
-    console.error('Error generating:', e);
-  } finally {
-    setGenerating(false);
-  }
-};
-
-  const fmt = (n: number) => `RM${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const filters = ['all', 'pending', 'accepted', 'dismissed'];
 
@@ -101,7 +213,7 @@ const generateNew = async () => {
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <Sparkles size={16} className={generating ? 'animate-spin' : ''} />
-          {generating ? 'Generating...' : 'Generate New'}
+          {generating ? 'Analyzing market data...' : 'Generate New'}
         </button>
       </div>
 
@@ -132,52 +244,12 @@ const generateNew = async () => {
       ) : (
         <div className="space-y-3">
           {recs.map((rec) => (
-            <div key={rec.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
-                      {typeLabel(rec.type)}
-                    </span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${priorityColor(rec.priority)}`}>
-                      {rec.priority}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {rec.product.name} ({rec.product.sku})
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-300 leading-relaxed">{rec.message}</p>
-                  {rec.savingsMyr && rec.savingsMyr > 0 && (
-                    <p className="text-sm text-emerald-400 mt-2 font-medium">
-                      Potential savings: {fmt(rec.savingsMyr)}
-                    </p>
-                  )}
-                </div>
-                {rec.status === 'pending' && (
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => updateStatus(rec.id, 'dismissed')}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition-colors"
-                    >
-                      <XCircle size={14} /> Dismiss
-                    </button>
-                    <button
-                      onClick={() => updateStatus(rec.id, 'accepted')}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors"
-                    >
-                      <CheckCircle size={14} /> Accept
-                    </button>
-                  </div>
-                )}
-                {rec.status !== 'pending' && (
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                    rec.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'
-                  }`}>
-                    {rec.status}
-                  </span>
-                )}
-              </div>
-            </div>
+            <RecCard
+              key={rec.id}
+              rec={rec}
+              onAccept={() => updateStatus(rec.id, 'accepted')}
+              onDismiss={() => updateStatus(rec.id, 'dismissed')}
+            />
           ))}
         </div>
       )}
