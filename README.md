@@ -9,11 +9,11 @@ Built for **UMHackathon 2026** | Category: AI-Powered Business Intelligence
 
 | Deliverable | Direct Link |
 |-------|-----------|
-| **Live Demo** | https://c1ye938tnkg0-deploy.space.z.ai/](https://c1ye938tnkg0-deploy.space.z.ai/|
+| **Live Demo** | https://c1ye938tnkg0-deploy.space.z.ai/|
 | **Demo Video** | https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing|
-| **Refined Quality Assurance Testing Document (QATD)** | https://docs.google.com/document/d/1u1Xb7tYa9_NtjGikRqSuhXq7MiIWH2D1/edit?usp=sharing&ouid=115700818611620777414&rtpof=true&sd=true|
-| **Deployment Plan** | https://docs.google.com/document/d/1D8CfpKMBebxXXvEPMKsTTPVN85wwtJWntY2669qrxrg/edit?usp=sharing|
-| **Business Proposal** | https://docs.google.com/document/d/1KYms8K4X0wreoTa6sSMsbzoTUyKn54Mx/edit?usp=sharing&ouid=115700818611620777414&rtpof=true&sd=true|
+| **Refined Quality Assurance Testing Document (QATD)** | https://drive.google.com/file/d/1CrWOm2-PrcNTqewdEw7bs41SZOd7qKdh/view?usp=sharing|
+| **Deployment Plan** | https://drive.google.com/file/d/1X1Rd5Qb0OZDUQlIDAEPOGe3dFBjCcwJp/view?usp=sharing|
+| **Business Proposal** | https://drive.google.com/file/d/1oepRU8L1DfSqOjchrmv1UPiltNxCUdAW/view?usp=sharing|
 | **Final Round Pitch Deck** | https://drive.google.com/file/d/1GbNJvADszYkor0S9XuJvu9W8J762DS1h/view?usp=sharing|
 
 ---
