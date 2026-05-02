@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "UMHackathon-IT-01",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "IT-01: Market News Intelligence",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"IT-01: Market Intelligence Data Contract Verified\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.be.an('array');",
+              "    pm.expect(jsonData[0]).to.have.property('title');",
+              "    pm.expect(jsonData[0]).to.have.property('sentiment');",
+              "    pm.expect(jsonData[0]).to.have.property('url');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/api/market-news",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "market-news"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
