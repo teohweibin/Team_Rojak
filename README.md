@@ -9,7 +9,18 @@ Built for **UMHackathon 2026** | Category: AI-Powered Business Intelligence
 **Demo Video**: [https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing](https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing)
 
 ---
+## Final Round Deliverables
 
+| Deliverable | Direct Link |
+|-------|-----------|
+| **Live Demo** | https://c1ye938tnkg0-deploy.space.z.ai/](https://c1ye938tnkg0-deploy.space.z.ai/|
+| **Demo Video** | https://drive.google.com/file/d/1aKh1kCwmHk1g47e16dBXVQ7pNNWQsBBk/view?usp=sharing|
+| **Refined Quality Assurance Testing Document (QATD)** ||
+| **Deployment Plan** | |
+| **Business Proposal** | |
+| **Final Round Pitch Deck** | |
+
+---
 ## Problem Statement
 
 Malaysian SME traders operating in the import and distribution sector face increasingly complex inventory decisions that span multiple foreign suppliers, fluctuating exchange rates, and unpredictable demand cycles. Traditional inventory management tools rely on rule-based threshold alerts, failing to account for unstructured market intelligence such as supply chain disruptions, geopolitical shifts, and currency devaluations.
