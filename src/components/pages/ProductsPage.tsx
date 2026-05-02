@@ -70,6 +70,12 @@ export default function ProductsPage() {
     fetchData();
   };
 
+  const deleteSupplier = async (id: string) => {
+    if (!confirm('Delete this supplier and all their associated products?')) return;
+    await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+    fetchData();
+  };
+
   const fmt = (n: number) => `RM${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (loading) return <div className="p-6"><div className="animate-pulse h-64 bg-slate-800 rounded-xl"></div></div>;
@@ -144,6 +150,8 @@ export default function ProductsPage() {
                     <th className="text-left px-4 py-3 text-slate-400 font-medium">Country</th>
                     <th className="text-left px-4 py-3 text-slate-400 font-medium">Currency</th>
                     <th className="text-center px-4 py-3 text-slate-400 font-medium">Products</th>
+                    {/* Added empty header for the delete button */}
+                    <th className="text-right px-4 py-3 text-slate-400 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -151,8 +159,21 @@ export default function ProductsPage() {
                     <tr key={s.id} className="border-b border-slate-700/50 hover:bg-slate-800/80 transition-colors">
                       <td className="px-4 py-3 text-white font-medium">{s.name}</td>
                       <td className="px-4 py-3 text-slate-300">{s.country}</td>
-                      <td className="px-4 py-3"><span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-700 text-slate-300">{s.currency}</span></td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-700 text-slate-300">
+                          {s.currency}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-center text-slate-300">{s.products.length}</td>
+                      {/* Added Delete Button */}
+                      <td className="px-4 py-3 text-right">
+                        <button 
+                          onClick={() => deleteSupplier(s.id)} 
+                          className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
