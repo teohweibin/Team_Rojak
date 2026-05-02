@@ -17,3 +17,28 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+
+    const updatedProduct = await db.product.update({
+      where: { id: id },
+      data: {
+        name: body.name,
+        reorderPoint: body.reorderPoint,
+        leadTimeDays: body.leadTimeDays,
+        // Add other fields if necessary
+      },
+    });
+
+    return NextResponse.json(updatedProduct);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
+  }
+}

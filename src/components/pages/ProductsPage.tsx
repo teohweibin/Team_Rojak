@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Pencil } from 'lucide-react';
 
 interface Supplier {
   id: string; name: string; country: string; currency: string;
@@ -76,6 +76,31 @@ export default function ProductsPage() {
     fetchData();
   };
 
+  // State to hold the product currently being edited
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Function to handle the update
+  const updateProduct = async () => {
+    if (!editingProduct) return;
+    
+    await fetch(`/api/products/${editingProduct.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sku: editingProduct.sku,
+        name: editingProduct.name,
+        category: editingProduct.category,
+        unitPriceMyr: editingProduct.unitPriceMyr,
+        reorderPoint: editingProduct.reorderPoint,
+        leadTimeDays: editingProduct.leadTimeDays,
+        supplierId: editingProduct.supplierId,
+      }),
+    });
+    
+    setEditingProduct(null);
+    fetchData();
+  };
+  
   const fmt = (n: number) => `RM${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (loading) return <div className="p-6"><div className="animate-pulse h-64 bg-slate-800 rounded-xl"></div></div>;
@@ -122,7 +147,14 @@ export default function ProductsPage() {
                       <td className="px-4 py-3 text-right text-white">{fmt(p.unitPriceMyr)}</td>
                       <td className="px-4 py-3 text-right text-slate-300">{p.reorderPoint}</td>
                       <td className="px-4 py-3 text-right text-slate-300">{p.leadTimeDays}</td>
-                      <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-right flex justify-end gap-2">
+                        {/* Edit Button */}
+                        <button 
+                          onClick={() => setEditingProduct(p)} 
+                          className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
                         <button onClick={() => deleteProduct(p.id)} className="p-1.5 text-slate-500 hover:text-red-400 transition-colors">
                           <Trash2 size={14} />
                         </button>
@@ -134,6 +166,57 @@ export default function ProductsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Modify Product</h3>
+              <button onClick={() => setEditingProduct(null)} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              <input 
+                placeholder="Product Name" 
+                value={editingProduct.name} 
+                onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} 
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Reorder Point</label>
+                  <input 
+                    type="text" // Standard text input to remove scroll numbers
+                    placeholder="Reorder Point" 
+                    value={editingProduct.reorderPoint ?? ''} 
+                    onChange={(e) => {
+                      // Only allow digits to be typed
+                      const val = e.target.value.replace(/\D/g, ''); 
+                      setEditingProduct({ ...editingProduct, reorderPoint: parseInt(val) || 0 });
+                    }} 
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Lead Time (d)</label>
+                  <input 
+                    type="text" // Standard text input
+                    placeholder="Lead Time (d)" 
+                    value={editingProduct.leadTimeDays ?? ''} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, ''); 
+                      setEditingProduct({ ...editingProduct, leadTimeDays: parseInt(val) || 0 });
+                    }} 
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
+                  />
+                </div>
+              </div>
+              <button onClick={updateProduct} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {tab === 'suppliers' && (
