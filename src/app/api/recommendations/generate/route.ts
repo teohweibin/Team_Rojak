@@ -12,56 +12,20 @@ interface NewsItem {
   relevance?: string;
 }
 
-interface AiRecommendation {
-  productId: string;
-  type: 'reorder' | 'price_adjust' | 'supplier_switch';
-  priority: 'critical' | 'high' | 'medium';
-  message: string;
-  savingsMyr: number | null;
-  reasoning: string;
-  newsReferences: number[];
-}
-
-const MAX_PRODUCTS = 4;
-const MAX_NEWS_ITEMS = 5;
-const MAX_NEWS_SUMMARY_CHARS = 220;
-const MAX_AI_RECOMMENDATIONS = 3;
-
-function truncateText(text: string, maxChars: number) {
-  if (!text) return '';
-  return text.length > maxChars ? `${text.slice(0, maxChars).trim()}...` : text;
-}
-
 function formatAlphaDate(dateStr: string) {
   if (!dateStr) return new Date().toISOString();
-
   const year = dateStr.slice(0, 4);
   const month = dateStr.slice(4, 6);
   const day = dateStr.slice(6, 8);
   const hour = dateStr.slice(9, 11) || '00';
   const minute = dateStr.slice(11, 13) || '00';
   const second = dateStr.slice(13, 15) || '00';
-
   return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-}
-
-function safeNumber(value: unknown, fallback = 0) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
-}
-
-function getInventoryQuantity(inventory: any) {
-  if (Array.isArray(inventory)) {
-    return safeNumber(inventory[0]?.quantity, 0);
-  }
-
-  return safeNumber(inventory?.quantity, 0);
 }
 
 async function fetchMarketNews(): Promise<NewsItem[]> {
   try {
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-
     if (!apiKey) {
       console.error('Missing ALPHA_VANTAGE_API_KEY');
       return [];
@@ -69,10 +33,12 @@ async function fetchMarketNews(): Promise<NewsItem[]> {
 
     const keywords = [
       'supply chain',
+      'trade',
       'logistics',
-      'tariff',
       'manufacturing',
       'commodity',
+      'inventory',
+      'tariff',
       'Malaysia',
       'Asia',
     ].join(',');
@@ -80,8 +46,6 @@ async function fetchMarketNews(): Promise<NewsItem[]> {
     const url =
       `https://www.alphavantage.co/query?function=NEWS_SENTIMENT` +
       `&keywords=${encodeURIComponent(keywords)}` +
-      `&sort=LATEST` +
-      `&limit=${MAX_NEWS_ITEMS}` +
       `&apikey=${apiKey}`;
 
     const response = await fetch(url, {
@@ -94,14 +58,11 @@ async function fetchMarketNews(): Promise<NewsItem[]> {
     }
 
     const data = await response.json();
+    if (!data.feed) return [];
 
-    if (!data.feed || !Array.isArray(data.feed)) {
-      return [];
-    }
-
-    return data.feed.slice(0, MAX_NEWS_ITEMS).map((item: any) => ({
-      title: truncateText(item.title || 'Untitled News', 120),
-      summary: truncateText(item.summary || '', MAX_NEWS_SUMMARY_CHARS),
+    return data.feed.slice(0, 8).map((item: any) => ({
+      title: item.title || 'Untitled News',
+      summary: item.summary || 'No summary available.',
       date: formatAlphaDate(item.time_published),
       source: item.source || 'Unknown Source',
       url: item.url || '',
@@ -114,117 +75,11 @@ async function fetchMarketNews(): Promise<NewsItem[]> {
   }
 }
 
-function buildCompactPrompt(productSummaries: any[], newsItems: NewsItem[]) {
-  const newsBlock =
-    newsItems.length > 0
-      ? newsItems
-          .map((n, index) => {
-            const sentiment = n.sentiment ? ` sentiment=${n.sentiment}` : '';
-            return `${index + 1}. ${n.title} | ${n.source} | ${n.date}${sentiment} | ${n.summary}`;
-          })
-          .join('\n')
-      : 'No news available. Use product data only.';
-
-  return `
-You are generating inventory recommendations for a Malaysian SME.
-
-Return ONLY valid JSON array. Max ${MAX_AI_RECOMMENDATIONS} items.
-
-Allowed type:
-- reorder
-- price_adjust
-- supplier_switch
-
-Allowed priority:
-- critical
-- high
-- medium
-
-Rules:
-- Recommend only when action is useful.
-- Use news only if directly relevant.
-- Keep message <= 120 chars.
-- Keep reasoning <= 260 chars.
-- newsReferences must use 1-based news numbers, or [].
-- savingsMyr can be null.
-
-JSON shape:
-[
-  {
-    "productId": "string",
-    "type": "reorder|price_adjust|supplier_switch",
-    "priority": "critical|high|medium",
-    "message": "short action",
-    "savingsMyr": number|null,
-    "reasoning": "short evidence-based reason",
-    "newsReferences": [1]
-  }
-]
-
-Products:
-${JSON.stringify(productSummaries)}
-
-News:
-${newsBlock}
-`.trim();
-}
-
-function cleanAiJson(content: string) {
-  let cleaned = content
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
-
-  const arrStart = cleaned.indexOf('[');
-  const arrEnd = cleaned.lastIndexOf(']');
-
-  if (arrStart !== -1 && arrEnd !== -1 && arrEnd > arrStart) {
-    cleaned = cleaned.slice(arrStart, arrEnd + 1);
-  }
-
-  return cleaned;
-}
-
-function isValidRecommendation(
-  rec: Partial<AiRecommendation>,
-  validProductIds: Set<string>
-): rec is AiRecommendation {
-  const validTypes = ['reorder', 'price_adjust', 'supplier_switch'];
-  const validPriorities = ['critical', 'high', 'medium'];
-
-  return Boolean(
-    rec.productId &&
-      validProductIds.has(rec.productId) &&
-      rec.type &&
-      validTypes.includes(rec.type) &&
-      rec.message &&
-      typeof rec.message === 'string' &&
-      rec.priority &&
-      validPriorities.includes(rec.priority)
-  );
-}
-
 export async function POST() {
   try {
     const products = await db.product.findMany({
-      take: MAX_PRODUCTS,
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        category: true,
-        unitPriceMyr: true,
-        reorderPoint: true,
-        leadTimeDays: true,
-        supplier: {
-          select: {
-            name: true,
-            country: true,
-            currency: true,
-          },
-        },
-        inventory: true,
-      },
+      take: 4,
+      include: { supplier: true, inventory: true, sales: true },
     });
 
     if (products.length === 0) {
@@ -233,129 +88,119 @@ export async function POST() {
 
     const salesAgg = await db.sale.groupBy({
       by: ['productId'],
-      _sum: {
-        quantity: true,
-      },
+      _sum: { quantity: true },
     });
+    const salesMap = new Map(salesAgg.map((s) => [s.productId, s._sum.quantity || 0]));
 
-    const salesMap = new Map(
-      salesAgg.map((sale) => [sale.productId, sale._sum.quantity || 0])
-    );
-
-    const productSummaries = products.map((product) => {
-      const stock = getInventoryQuantity(product.inventory);
-      const totalSold = safeNumber(salesMap.get(product.id), 0);
-      const avgDaily = Math.round((totalSold / 30) * 10) / 10;
-      const reorderPoint = safeNumber(product.reorderPoint, 0);
-      const leadDays = safeNumber(product.leadTimeDays, 0);
-
-      const daysCover =
-        avgDaily > 0 ? Math.round((stock / avgDaily) * 10) / 10 : null;
-
-      let risk = 'healthy';
-
-      if (stock <= 0) {
-        risk = 'out_of_stock';
-      } else if (stock < reorderPoint) {
-        risk = 'below_reorder';
-      } else if (daysCover !== null && daysCover <= leadDays) {
-        risk = 'lead_time_risk';
-      }
-
+    const productSummaries = products.map((p) => {
+      const totalSold = salesMap.get(p.id) || 0;
       return {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        cat: product.category,
-        price: product.unitPriceMyr,
-        stock,
-        reorder: reorderPoint,
-        leadDays,
-        avgDaily,
-        daysCover,
-        risk,
-        supplier: product.supplier?.name || 'Unknown',
-        country: product.supplier?.country || 'Unknown',
-        currency: product.supplier?.currency || 'Unknown',
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        cat: p.category,
+        price: p.unitPriceMyr,
+        reorder: p.reorderPoint,
+        leadDays: p.leadTimeDays,
+        stock: p.inventory?.quantity || 0,
+        avgDaily: Math.round((totalSold / 30) * 10) / 10,
+        supplier: p.supplier.name,
+        country: p.supplier.country,
+        currency: p.supplier.currency,
       };
     });
 
+    // Fetch real market news from Alpha Vantage
     const newsItems = await fetchMarketNews();
-    const prompt = buildCompactPrompt(productSummaries, newsItems);
+    const newsContext = newsItems.length > 0
+      ? newsItems
+          .map((n, i) => {
+            let line = `[${i + 1}] "${n.title}" (${n.source}, ${n.date})`;
+            if (n.sentiment) line += ` — Sentiment: ${n.sentiment}`;
+            line += ` — ${n.summary}`;
+            return line;
+          })
+          .join('\n')
+      : '';
+
+    const prompt = `You are a supply chain intelligence analyst for a Malaysian SME. Analyze the product data below alongside real-time market news intelligence to generate up to 5 actionable recommendations.
+
+RECOMMENDATION TYPES:
+- "reorder": Stock is low or will run out before next delivery. Factor in lead time, supplier country risks, and any supply chain disruptions in the news.
+- "price_adjust": Demand patterns, market sentiment, commodity price shifts, or currency fluctuations warrant a price change. Reference specific news if relevant.
+- "supplier_switch": Current supplier has risks (geopolitical, currency, reliability) and alternatives should be considered. Cite news about trade disruptions.
+
+PRIORITY: "critical" (immediate action needed), "high" (act within days), "medium" (monitor and plan)
+
+PRODUCT DATA:
+${JSON.stringify(productSummaries)}
+
+MARKET NEWS INTELLIGENCE:
+${newsContext || '(No market news available — base reasoning on product data only)'}
+
+INSTRUCTIONS:
+1. Cross-reference each product with the market news above. If news mentions supply chain disruptions, tariffs, currency shifts, or commodity changes that affect a product, factor that into your recommendation.
+2. For each recommendation, write a "reasoning" field (3-4 sentences) that explains:
+   - What specific data point or metric triggered this recommendation
+   - How relevant market news (if any) supports or amplifies the risk/opportunity
+   - What the business impact would be if no action is taken
+3. In "newsReferences", list the news item numbers [1-based] that are directly relevant. Use [] if none apply.
+
+Respond ONLY with a valid JSON array. Each item:
+{"productId","type","priority","message","savingsMyr","reasoning","newsReferences"}`;
 
     const completion = await zai.chat.completions.create({
-      model: 'glm-4.7-flash',
+      model: 'GLM-5.1',
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are a concise supply-chain recommendation engine. Return valid JSON only.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
+        { role: 'system', content: 'You are a supply chain intelligence AI. You cross-reference real-time market news with inventory data to produce actionable, evidence-backed recommendations. Always cite specific data and news in your reasoning. Respond with valid JSON only.' },
+        { role: 'user', content: prompt },
       ],
-      temperature: 0.2,
-      max_tokens: 1200,
+      temperature: 0.3,
+      max_tokens: 4096,
     });
 
     const content = completion.choices[0]?.message?.content;
-
     if (!content) {
-      return NextResponse.json(
-        { error: 'AI returned empty response' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'AI returned empty response' }, { status: 500 });
     }
 
-    let recommendations: AiRecommendation[];
-
+    let recommendations: Array<{
+      productId: string;
+      type: string;
+      priority: string;
+      message: string;
+      savingsMyr: number | null;
+      reasoning: string;
+      newsReferences: number[];
+    }>;
     try {
-      const cleaned = cleanAiJson(content);
-      const parsed = JSON.parse(cleaned);
-
-      if (!Array.isArray(parsed)) {
-        return NextResponse.json(
-          { error: 'AI response is not an array', raw: content },
-          { status: 500 }
-        );
+      let cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const arrStart = cleaned.indexOf('[');
+      const arrEnd = cleaned.lastIndexOf(']');
+      if (arrStart !== -1 && arrEnd !== -1) {
+        cleaned = cleaned.slice(arrStart, arrEnd + 1);
       }
-
-      recommendations = parsed;
+      recommendations = JSON.parse(cleaned);
     } catch {
-      return NextResponse.json(
-        { error: 'Failed to parse AI response', raw: content },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to parse AI response', raw: content }, { status: 500 });
     }
 
-    const validProductIds = new Set(products.map((product) => product.id));
-
-    const validRecs = recommendations
-      .filter((rec) => isValidRecommendation(rec, validProductIds))
-      .slice(0, MAX_AI_RECOMMENDATIONS);
-
-    if (validRecs.length === 0) {
-      return NextResponse.json({
-        generated: 0,
-        message: 'No useful recommendations generated',
-      });
+    if (!Array.isArray(recommendations)) {
+      return NextResponse.json({ error: 'AI response is not an array', raw: content }, { status: 500 });
     }
+
+    const validRecs = recommendations.filter(
+      (rec) => rec.productId && rec.type && rec.message && products.some((p) => p.id === rec.productId)
+    );
 
     const created = await db.recommendation.createMany({
       data: validRecs.map((rec) => {
         const refLinks: Array<{ title: string; url: string }> = [];
-
         if (Array.isArray(rec.newsReferences)) {
           for (const idx of rec.newsReferences) {
             const newsItem = newsItems[idx - 1];
-
             if (newsItem) {
-              refLinks.push({
-                title: newsItem.title,
-                url: newsItem.url,
-              });
+              refLinks.push({ title: newsItem.title, url: newsItem.url });
             }
           }
         }
@@ -364,27 +209,19 @@ export async function POST() {
           productId: rec.productId,
           type: rec.type,
           priority: rec.priority || 'medium',
-          message: truncateText(rec.message, 180),
-          savingsMyr: rec.savingsMyr ?? null,
-          reasoning: rec.reasoning ? truncateText(rec.reasoning, 500) : null,
-          newsReferences:
-            refLinks.length > 0 ? JSON.stringify(refLinks) : null,
+          message: rec.message,
+          savingsMyr: rec.savingsMyr || null,
+          reasoning: rec.reasoning || null,
+          newsReferences: refLinks.length > 0 ? JSON.stringify(refLinks) : null,
           status: 'pending',
         };
       }),
     });
 
-    return NextResponse.json({
-      generated: created.count,
-    });
+    return NextResponse.json({ generated: created.count });
   } catch (error) {
     console.error('Recommendation generation failed:', error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Failed to generate recommendations';
-
+    const message = error instanceof Error ? error.message : 'Failed to generate recommendations';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
