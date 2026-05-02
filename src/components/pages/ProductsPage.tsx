@@ -79,6 +79,9 @@ export default function ProductsPage() {
   // State to hold the product currently being edited
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
+  // State for the supplier being edited
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
+
   // Function to handle the update
   const updateProduct = async () => {
     if (!editingProduct) return;
@@ -99,6 +102,30 @@ export default function ProductsPage() {
     
     setEditingProduct(null);
     fetchData();
+  };
+  
+  // Function to handle the PUT request
+  const updateSupplier = async () => {
+    if (!editingSupplier) return;
+    
+    try {
+      const response = await fetch(`/api/suppliers/${editingSupplier.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingSupplier.name,
+          country: editingSupplier.country,
+          currency: editingSupplier.currency,
+        }),
+      });
+
+      if (response.ok) {
+        setEditingSupplier(null);
+        fetchData(); // Refresh the list
+      }
+    } catch (error) {
+      console.error("Failed to update supplier:", error);
+    }
   };
   
   const fmt = (n: number) => `RM${n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -183,34 +210,34 @@ export default function ProductsPage() {
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
               />
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Reorder Point</label>
-                  <input 
-                    type="text" // Standard text input to remove scroll numbers
-                    placeholder="Reorder Point" 
-                    value={editingProduct.reorderPoint ?? ''} 
-                    onChange={(e) => {
-                      // Only allow digits to be typed
-                      const val = e.target.value.replace(/\D/g, ''); 
-                      setEditingProduct({ ...editingProduct, reorderPoint: parseInt(val) || 0 });
-                    }} 
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Lead Time (d)</label>
-                  <input 
-                    type="text" // Standard text input
-                    placeholder="Lead Time (d)" 
-                    value={editingProduct.leadTimeDays ?? ''} 
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, ''); 
-                      setEditingProduct({ ...editingProduct, leadTimeDays: parseInt(val) || 0 });
-                    }} 
-                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
-                  />
-                </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Reorder Point</label>
+                <input 
+                  type="text" // Standard text input to remove scroll numbers
+                  placeholder="Reorder Point" 
+                  value={editingProduct.reorderPoint ?? ''} 
+                  onChange={(e) => {
+                    // Only allow digits to be typed
+                    const val = e.target.value.replace(/\D/g, ''); 
+                    setEditingProduct({ ...editingProduct, reorderPoint: parseInt(val) || 0 });
+                  }} 
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
+                />
               </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Lead Time (d)</label>
+                <input 
+                  type="text" // Standard text input
+                  placeholder="Lead Time (d)" 
+                  value={editingProduct.leadTimeDays ?? ''} 
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, ''); 
+                    setEditingProduct({ ...editingProduct, leadTimeDays: parseInt(val) || 0 });
+                  }} 
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500" 
+                />
+              </div>
+            </div>
               <button onClick={updateProduct} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
                 Save Changes
               </button>
@@ -251,6 +278,12 @@ export default function ProductsPage() {
                       {/* Added Delete Button */}
                       <td className="px-4 py-3 text-right">
                         <button 
+                          onClick={() => setEditingSupplier(s)} 
+                          className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button 
                           onClick={() => deleteSupplier(s.id)} 
                           className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
                         >
@@ -266,6 +299,62 @@ export default function ProductsPage() {
         </>
       )}
 
+      {editingSupplier && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Modify Supplier</h3>
+              <button onClick={() => setEditingSupplier(null)} className="text-slate-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block uppercase tracking-wider">Supplier Name</label>
+                <input 
+                  type="text"
+                  value={editingSupplier.name} 
+                  onChange={(e) => setEditingSupplier({ ...editingSupplier, name: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block uppercase tracking-wider">Country</label>
+                <input 
+                  type="text"
+                  value={editingSupplier.country} 
+                  onChange={(e) => setEditingSupplier({ ...editingSupplier, country: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block uppercase tracking-wider">Currency</label>
+                <select 
+                  value={editingSupplier.currency} 
+                  onChange={(e) => setEditingSupplier({ ...editingSupplier, currency: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="MYR">MYR</option>
+                  <option value="USD">USD</option>
+                  <option value="CNY">CNY</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+
+              <button 
+                onClick={updateSupplier} 
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-900/20 mt-2"
+              >
+                Save Supplier Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Product Form Modal */}
       {showProductForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
