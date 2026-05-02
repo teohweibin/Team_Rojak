@@ -1,10 +1,7 @@
-import ZAI from 'z-ai-web-dev-sdk';
+// src/lib/zai.ts
+import OpenAI from 'openai';
 
-let zaiInstance: ZAI | null = null;
-
-export async function getZAI(): Promise<ZAI> {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
+export const zai = new OpenAI({
+  apiKey: process.env.ZAI_API_KEY,
+  baseURL: process.env.ZAI_BASE_URL,
+});
